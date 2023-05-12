@@ -1,0 +1,114 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.FileWriter;
+
+class JsonPlaceholderApiClient {
+    private static final String BASE_URL = "https://jsonplaceholder.typicode.com";
+
+    public static void main(String[] args) throws IOException {
+        JsonPlaceholderApiClient apiClient = new JsonPlaceholderApiClient();
+
+        String newUserJson = "{\"name\": \"John Doe\", \"username\": \"johndoe\", \"email\": \"johndoe@example.com\"}";
+        String createdUserJson = apiClient.post("/users", newUserJson);
+        System.out.println("Created user: " + createdUserJson);
+
+        String updatedUserJson = apiClient.put("/users/1", "{\"name\": \"Jane Doe\"}");
+        System.out.println("Updated user: " + updatedUserJson);
+
+        String openTasksJson = apiClient.getOpenTasksForUser(1);
+        System.out.println("Open tasks for user 1: " + openTasksJson);
+
+        int responseCode = apiClient.delete("/users/1");
+        System.out.println("Delete user response code: " + responseCode);
+
+        String allUsersJson = apiClient.get("/users");
+        System.out.println("All users: " + allUsersJson);
+
+        String userByIdJson = apiClient.get("/users/2");
+        System.out.println("User by id: " + userByIdJson);
+
+        String username = "johndoe";
+        String userByUsernameJson = apiClient.get("/users?username=" + username);
+        System.out.println("User by username: " + userByUsernameJson);
+
+        String allPostsJson = apiClient.get("/users/1/posts");
+        JSONArray posts = new JSONArray(allPostsJson);
+        JSONObject lastPost = posts.getJSONObject(posts.length() - 1);
+        int postId = lastPost.getInt("id");
+
+        String allCommentsJson = apiClient.get("/posts/" + postId + "/comments");
+        JSONArray comments = new JSONArray(allCommentsJson);
+
+        String filename = "user-1-post-" + postId + "-comments.json";
+        try (FileWriter file = new FileWriter(filename)) {
+            file.write(comments.toString());
+        }
+    }
+
+    private String get(String path) throws IOException {
+        URL url = new URL(BASE_URL + path);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        return getResponse(con);
+    }
+
+    private String post(String path, String jsonBody) throws IOException {
+        URL url = new URL(BASE_URL + path);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("POST");
+        con.setRequestProperty("Content-Type", "application/json");
+        con.setDoOutput(true);
+        OutputStream os = con.getOutputStream();
+        byte[] input = jsonBody.getBytes(StandardCharsets.UTF_8);
+        os.write(input, 0, input.length);
+        return getResponse(con);
+    }
+
+    private String getOpenTasksForUser(int userId) throws IOException {
+        URL url = new URL(BASE_URL + "/users/" + userId + "/todos?completed=false");
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        return getResponse(con);
+    }
+    private String put(String path, String jsonBody) throws IOException {
+        URL url = new URL(BASE_URL + path);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("PUT");
+        con.setRequestProperty("Content-Type", "application/json");
+        con.setDoOutput(true);
+        OutputStream os = con.getOutputStream();
+        byte[] input = jsonBody.getBytes(StandardCharsets.UTF_8);
+        os.write(input, 0, input.length);
+        return getResponse(con);
+    }
+
+    private int delete(String path) throws IOException {
+        URL url = new URL(BASE_URL + path);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("DELETE");
+        return con.getResponseCode();
+    }
+
+    private String getResponse(HttpURLConnection con) throws IOException {
+        int responseCode = con.getResponseCode();
+        if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
+            BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+                response.append(line);
+            }
+            in.close();
+            return response.toString();
+        } else {
+            throw new IOException("Response code: " + responseCode);
+        }
+    }
+}
